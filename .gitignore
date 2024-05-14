@@ -1,0 +1,6 @@
+/params
+/runs
+/train_image
+*.pth
+*.jpg
+*.png

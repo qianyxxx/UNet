@@ -10,7 +10,12 @@ class Conv_Block(nn.Module):
         self.layer = nn.Sequential(
             nn.Conv2d(in_channel, out_channel, 3, 1, 1, padding_mode='reflect', bias=False),  # reflect: 用镜像填充
             nn.BatchNorm2d(out_channel),
-            nn.Dropout2d(0.3),
+            nn.Dropout2d(0.1),
+            nn.LeakyReLU(),
+
+            nn.Conv2d(out_channel, out_channel, 3, 1, 1, padding_mode='reflect', bias=False),  # reflect: 用镜像填充
+            nn.BatchNorm2d(out_channel),
+            nn.Dropout2d(0.1),
             nn.LeakyReLU()
         )
 
@@ -24,7 +29,7 @@ class DownSample(nn.Module):
         self.layer = nn.Sequential(
             nn.Conv2d(channel, channel, 3, 2, 1, padding_mode='reflect', bias=False),
             nn.BatchNorm2d(channel),
-            nn.Dropout2d(0.3),
+            nn.Dropout2d(0.1),
             nn.LeakyReLU()
         )
 
@@ -39,8 +44,12 @@ class UpSample(nn.Module):
 
     def forward(self, x, feature_map):
         up = F.interpolate(x, scale_factor=2, mode='nearest')
+        # print(f'check shape--feature map:{feature_map.shape}--')
         out = self.layer(up)
-        return torch.cat((out, feature_map), dim=1)  # N C H W, concatenate on channel C
+        # print(f'check shape-- output:{out.shape}, feature map:{feature_map.shape}--')
+        catresult = torch.cat((out, feature_map), dim=1)  # N C H W, concatenate on channel C
+        # print(concatenation result shape: {catresult.shape}')
+        return catresult
 
 
 class UNet(nn.Module):
@@ -66,44 +75,47 @@ class UNet(nn.Module):
         self.out = nn.Conv2d(64, 3, 1, 1)
         self.Th = nn.Sigmoid()
 
-    def _forward(self, x):
+    def forward(self, x):
+        # print(f'check shape--input:{x.shape}--')
         R1 = self.c1(x)
+        # print(f'check shape--R1:{R1.shape}--')
         R2 = self.c2(self.d1(R1))
+        #        print(f'check shape--R2:{R2.shape}--')
         R3 = self.c3(self.d2(R2))
+        #       print(f'check shape--R3:{R3.shape}--')
         R4 = self.c4(self.d3(R3))
+        #      print(f'check shape--R4:{R4.shape}--')
         R5 = self.c5(self.d4(R4))
+        #     print(f'check shape--R5:{R5.shape}--')
         O1 = self.c6(self.u1(R5, R4))
         O2 = self.c7(self.u2(O1, R3))
         O3 = self.c8(self.u3(O2, R2))
         O4 = self.c9(self.u4(O3, R1))
 
-        return self.Th(self.out(O4)), R5
-
-    def forward(self, x):
-        output, _ = self._forward(x)
-        return output
+        return self.Th(self.out(O4))
 
 
-class FeatureMap(UNet):
-    def forward(self, x):
-        output, feature_map = self._forward(x)
-        return output, feature_map
+# class FeatureMap(UNet):
+#     def forward(self, x):
+#         output, feature_map = self._forward(x)
+#         return output, feature_map
 
 
 if __name__ == '__main__':
     # writer = SummaryWriter()
     #
     x = torch.randn(2, 3, 256, 256)  # N C H W
-    # net = UNet()
-    #
+    net = UNet()
+    print(net(x)[0].shape)
+    print(net(x)[1].shape)
     # writer.add_graph(net, x)
     #
     # # 刷新结果并关闭 writer
     # writer.close()
 
-    net = FeatureMap()
-    output, feature_map = net(x)
-
-    print(net(x)[1].shape)
-    print(output.shape)
-    print(feature_map.shape)
+    # net = FeatureMap()
+    # output, feature_map = net(x)
+    #
+    # print(net(x)[1].shape)
+    # print(output.shape)
+    # print(feature_map.shape)
